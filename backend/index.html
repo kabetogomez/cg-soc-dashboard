@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC Dashboard - Threat Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 min-h-screen text-white">
+    <div class="container mx-auto px-6 py-12 max-w-7xl">
+        <!-- Header -->
+        <div class="text-center mb-16">
+            <h1 class="text-6xl font-black bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent mb-4">
+                🛡️ SOC Dashboard
+            </h1>
+            <p class="text-xl text-gray-300 mb-8">Threat Intelligence en tiempo real - LATAM</p>
+            <button id="refreshBtn" class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-xl font-bold rounded-2xl backdrop-blur-sm border border-blue-500/50 transition-all duration-300">
+                🔄 Actualizar Datos
+            </button>
+        </div>
+
+        <!-- Grid Principal -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Noticias -->
+            <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 hover:shadow-2xl hover:shadow-blue-500/20 transition-all">
+                <h2 class="text-3xl font-bold mb-8 flex items-center gap-3">
+                    🚨 <span>Últimas Noticias</span>
+                </h2>
+                <div id="newsContainer" class="space-y-4 max-h-96 overflow-y-auto">
+                    <!-- Noticias cargan aquí -->
+                </div>
+            </div>
+
+            <!-- IP Checker -->
+            <div class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 hover:shadow-2xl hover:shadow-purple-500/20 transition-all">
+                <h2 class="text-3xl font-bold mb-8 flex items-center gap-3">
+                    🔍 <span>Analizador IP</span>
+                </h2>
+                <div class="space-y-6">
+                    <div>
+                        <input 
+                            id="ipInput" 
+                            type="text" 
+                            placeholder="Ingrese IP (ej: 8.8.8.8)" 
+                            class="w-full px-6 py-4 bg-white/10 border-2 border-white/20 rounded-2xl text-xl font-mono text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none transition-all"
+                        />
+                    </div>
+                    <button id="checkIpBtn" class="w-full px-8 py-5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-xl font-bold rounded-2xl backdrop-blur-sm border border-emerald-500/50 transition-all duration-300">
+                        🔎 ANALIZAR IP
+                    </button>
+                    <div id="ipResults" class="grid grid-cols-2 gap-4 hidden">
+                        <!-- Resultados aquí -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api'; // Railway lo maneja automáticamente
+
+        // Cargar noticias
+        async function loadNews() {
+            try {
+                const res = await fetch(`${API_BASE}/news`);
+                const data = await res.json();
+                const container = document.getElementById('newsContainer');
+                container.innerHTML = data.news.map(n => `
+                    <div class="p-6 bg-gradient-to-r from-red-500/20 to-pink-500/20 border-l-4 border-red-400 rounded-2xl hover:shadow-lg transition-all">
+                        <h3 class="text-xl font-bold mb-2">${n.title}</h3>
+                        <p class="text-sm text-gray-300 mb-3">Severidad: ${n.severity}/10</p>
+                        <a href="${n.link}" target="_blank" class="text-blue-400 hover:text-blue-300 font-medium">→ Fuente original</a>
+                    </div>
+                `).join('');
+            } catch(e) {
+                console.error('Error noticias:', e);
+            }
+        }
+
+        // Analizar IP
+        document.getElementById('checkIpBtn').onclick = async () => {
+            const ip = document.getElementById('ipInput').value.trim();
+            if(!ip) return alert('Ingresa una IP');
+
+            const btn = document.getElementById('checkIpBtn');
+            btn.textContent = '⏳ Analizando...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_BASE}/ip/check`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ip})
+                });
+                const data = await res.json();
+                
+                const results = document.getElementById('ipResults');
+                results.classList.remove('hidden');
+                results.innerHTML = `
+                    <div class="p-4 bg-gradient-to-r from-purple-500/20 to-indigo-500/20 rounded-xl text-center">
+                        <div class="text-3xl font-black">${data.score}%</div>
+                        <div class="text-purple-400 font-bold">${data.risk}</div>
+                        <div class="text-sm text-gray-400">${data.ip}</div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 text-center p-4">
+                        <div class="p-3 bg-white/10 rounded-xl">
+                            <div class="text-lg font-bold">${data.results.alienvault.reputation}</div>
+                            <div class="text-xs text-gray-400">AlienVault</div>
+                        </div>
+                        <div class="p-3 bg-white/10 rounded-xl">
+                            <div class="text-lg font-bold">${data.results.abuseipdb.confidence}%</div>
+                            <div class="text-xs text-gray-400">AbuseIPDB</div>
+                        </div>
+                        <div class="p-3 bg-white/10 rounded-xl">
+                            <div class="text-lg font-bold">${data.results.urlscan.malicious}</div>
+                            <div class="text-xs text-gray-400">URLScan</div>
+                        </div>
+                        <div class="p-3 bg-white/10 rounded-xl">
+                            <div class="text-lg font-bold">${data.results.hybrid.detections}</div>
+                            <div class="text-xs text-gray-400">Hybrid</div>
+                        </div>
+                    </div>
+                `;
+            } catch(e) {
+                alert('Error conectando. Revisa consola.');
+            }
+
+            btn.textContent = '🔎 ANALIZAR IP';
+            btn.disabled = false;
+        };
+
+        // Eventos
+        document.getElementById('refreshBtn').onclick = loadNews;
+        document.getElementById('ipInput').onkeypress = (e) => e.key === 'Enter' && document.getElementById('checkIpBtn').click();
+
+        // Cargar al inicio
+        loadNews();
+    </script>
+</body>
+</html>
